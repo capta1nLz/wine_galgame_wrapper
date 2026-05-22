@@ -65,6 +65,27 @@ def is_64bit_pe(exe_path):
         # 0x8664 = AMD64, 0x014C = i386, others rare
         return machine == 0x8664
 
+def clean_macos_metadata(path):
+    """Remove macOS metadata files and xattrs that make codesign fail."""
+    path = Path(path)
+    for root, dirs, files in os.walk(path, topdown=False):
+        root_path = Path(root)
+        for name in files:
+            if name == ".DS_Store" or name.startswith("._"):
+                try:
+                    (root_path / name).unlink()
+                except OSError as e:
+                    print(f"Warning: could not remove metadata file {root_path / name}: {e}")
+        for name in dirs:
+            if name == "__MACOSX":
+                try:
+                    shutil.rmtree(root_path / name)
+                except OSError as e:
+                    print(f"Warning: could not remove metadata directory {root_path / name}: {e}")
+
+    subprocess.run(["xattr", "-cr", str(path)], check=False)
+    subprocess.run(["dot_clean", "-m", str(path)], check=False)
+
 # ---------- main wrapper creation ----------
 def main():
     print("=" * 60)
@@ -106,6 +127,12 @@ def main():
         print(f"Using sanitised name: {safe_name}")
         app_name = safe_name
     app_bundle = Path(f"{app_name}.app").resolve()
+    if app_bundle.exists():
+        overwrite = input(f"{app_bundle} already exists. Replace it? [y/N]: ").strip().lower()
+        if overwrite != "y":
+            sys.exit("Aborting so the existing app is left unchanged.")
+        print("Removing existing app bundle...")
+        shutil.rmtree(app_bundle)
 
     # 5. Choose locale
     locales = {
@@ -275,11 +302,13 @@ exit "$STATUS"
 
     # Ad-hoc codesign to avoid launch issues
     print("Cleaning macOS metadata before codesign...")
-    subprocess.run(["xattr", "-cr", str(app_bundle)], check=False)
-    subprocess.run(["dot_clean", "-m", str(app_bundle)], check=False)
+    clean_macos_metadata(app_bundle)
 
     print("Performing ad-hoc codesign...")
-    subprocess.run(["codesign", "--force", "--deep", "-s", "-", str(app_bundle)], check=True)
+    try:
+        subprocess.run(["codesign", "--force", "--deep", "-s", "-", str(app_bundle)], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Warning: codesign failed, but the wrapper was created: {e}")
 
     # Test launch (run for 10 seconds, capture log)
     print("\nRunning first-launch test (will close after 10 seconds)...")
