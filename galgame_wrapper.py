@@ -154,7 +154,22 @@ def main():
     else:
         print("No special locale will be set.")
 
-    # 6. Start building
+    # 6. Choose Windows compatibility version
+    win_versions = {
+        "1": ("Windows 10", "win10"),
+        "2": ("Windows 7", "win7"),
+        "3": ("Windows XP", "winxp"),
+    }
+    print("\nSelect Wine Windows version:")
+    for key, (desc, _) in win_versions.items():
+        print(f"  [{key}] {desc}")
+    win_choice = input("Choice (1/2/3, default 1): ").strip()
+    if win_choice == "":
+        win_choice = "1"
+    win_version = win_versions.get(win_choice, win_versions["1"])[1]
+    print(f"Windows version will be set to {win_version}.")
+
+    # 7. Start building
     print("\nCreating wrapper bundle...")
 
     # Directory structure
@@ -199,6 +214,10 @@ def main():
     wine_env["WINEPREFIX"] = str(prefix_dir)
     wine_env["WINEARCH"] = arch_str
     wine_env["WINEDEBUG"] = "-all"
+    if locale_env:
+        wine_env["LANG"] = locale_env
+        wine_env["LC_ALL"] = locale_env
+        wine_env["LC_CTYPE"] = locale_env
 
     # Run wineboot to create prefix
     cmd([str(winebin), "wineboot", "-u"], env=wine_env, timeout=120)
@@ -207,7 +226,7 @@ def main():
     reg_content = f"""Windows Registry Editor Version 5.00
 
 [HKEY_CURRENT_USER\\Software\\Wine]
-"Version"="{DEFAULT_WIN_VERSION}"
+"Version"="{win_version}"
 """
     reg_file = tempfile.NamedTemporaryFile(mode="w", suffix=".reg", delete=False)
     reg_file.write(reg_content)
@@ -240,7 +259,11 @@ def main():
     wine_drive_path = f"C:\\Games\\{safe_name}\\{launcher_rel_posix}".replace("/", "\\")
     locale_exports = ""
     if locale_env:
-        locale_exports = f'export LANG={locale_env}\nexport LC_ALL={locale_env}\n'
+        locale_exports = (
+            f'export LANG={locale_env}\n'
+            f'export LC_ALL={locale_env}\n'
+            f'export LC_CTYPE={locale_env}\n'
+        )
 
     script_content = f'''#!/bin/bash
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -321,6 +344,7 @@ exit "$STATUS"
     if locale_env:
         test_env["LANG"] = locale_env
         test_env["LC_ALL"] = locale_env
+        test_env["LC_CTYPE"] = locale_env
 
     log_file = logs_dir / "first_launch.log"
     try:
