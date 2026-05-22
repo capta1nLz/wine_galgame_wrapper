@@ -169,7 +169,38 @@ def main():
     win_version = win_versions.get(win_choice, win_versions["1"])[1]
     print(f"Windows version will be set to {win_version}.")
 
-    # 7. Start building
+    # 7. Choose optional compatibility profile
+    compat_profiles = {
+        "1": ("Standard fonts only", ["cjkfonts", "corefonts"]),
+        "2": (
+            "Old VN multimedia components",
+            ["cjkfonts", "corefonts", "quartz", "devenum", "amstream", "directmusic", "dsound"],
+        ),
+        "3": (
+            "Old VN multimedia + VC runtimes",
+            [
+                "cjkfonts",
+                "corefonts",
+                "quartz",
+                "devenum",
+                "amstream",
+                "directmusic",
+                "dsound",
+                "vcrun2008",
+                "vcrun2010",
+            ],
+        ),
+    }
+    print("\nSelect compatibility profile:")
+    for key, (desc, _) in compat_profiles.items():
+        print(f"  [{key}] {desc}")
+    compat_choice = input("Choice (1/2/3, default 1): ").strip()
+    if compat_choice == "":
+        compat_choice = "1"
+    compat_name, winetricks_verbs = compat_profiles.get(compat_choice, compat_profiles["1"])
+    print(f"Compatibility profile: {compat_name}")
+
+    # 8. Start building
     print("\nCreating wrapper bundle...")
 
     # Directory structure
@@ -234,13 +265,13 @@ def main():
     cmd([str(winebin), "regedit", reg_file.name], env=wine_env)
     os.unlink(reg_file.name)
 
-    # Install CJK fonts and common fonts using winetricks
-    print("Installing CJK fonts and core fonts...")
+    # Install fonts and optional compatibility components using winetricks
+    print(f"Installing winetricks profile: {', '.join(winetricks_verbs)}...")
     # winetricks is expected in PATH
     winetricks_env = wine_env.copy()
     winetricks_env["WINE"] = str(winebin)
     try:
-        subprocess.run(["winetricks", "cjkfonts", "corefonts"],
+        subprocess.run(["winetricks", *winetricks_verbs],
                        env=winetricks_env, check=True, timeout=300)
     except Exception as e:
         print(f"Warning: winetricks step failed (maybe it's not installed?): {e}")
@@ -337,7 +368,7 @@ exit "$STATUS"
     print("\nRunning first-launch test (will close after 10 seconds)...")
     test_env = os.environ.copy()
     test_env["WINEPREFIX"] = str(prefix_dir)
-    test_env["WINEDEBUG"] = "+loaddll,+seh,+tid,+timestamp"
+    test_env["WINEDEBUG"] = "+loaddll,+tid,+timestamp"
     test_env["PATH"] = f"{wine_runtime_dest}/bin:{test_env['PATH']}"
     test_env["WINEDLLOVERRIDES"] = "dxgi,d3d8,d3d9,d3d10core,d3d11=b"
     test_env["DXVK_LOG_LEVEL"] = "none"
