@@ -206,8 +206,10 @@ def main():
     if launcher_dir_posix == ".":
         launcher_dir_posix = ""
     game_working_dir = f'$RES/prefix/drive_c/Games/{safe_name}'
+    game_working_dir_path = game_dest
     if launcher_dir_posix:
         game_working_dir = f'{game_working_dir}/{launcher_dir_posix}'
+        game_working_dir_path = game_dest / launcher_dir_posix
     wine_drive_path = f"C:\\Games\\{safe_name}\\{launcher_rel_posix}".replace("/", "\\")
     locale_exports = ""
     if locale_env:
@@ -216,14 +218,37 @@ def main():
     script_content = f'''#!/bin/bash
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RES="$APP_DIR/Resources"
+LOG_DIR="$HOME/Library/Logs/{safe_name}"
+LOG_FILE="$LOG_DIR/launcher.log"
+WINE_LOG="$LOG_DIR/wine.log"
+
+mkdir -p "$LOG_DIR"
+exec >>"$LOG_FILE" 2>&1
+
+echo "===== launch $(date) ====="
+echo "APP_DIR=$APP_DIR"
+echo "RES=$RES"
+echo "WINEPREFIX=$RES/prefix"
+echo "GAME_DIR={game_working_dir}"
+echo "EXE={wine_drive_path}"
 
 export WINEPREFIX="$RES/prefix"
 export WINEDEBUG="-all"
 export PATH="$RES/wine-runtime/bin:$PATH"
 {locale_exports}
 # Run the game
-cd "{game_working_dir}"
-exec "$RES/wine-runtime/bin/wine" "{wine_drive_path}"
+if [ ! -x "$RES/wine-runtime/bin/wine" ]; then
+  echo "ERROR: Wine binary is missing or not executable: $RES/wine-runtime/bin/wine"
+  exit 1
+fi
+
+if ! cd "{game_working_dir}"; then
+  echo "ERROR: Could not cd into game directory: {game_working_dir}"
+  exit 1
+fi
+
+echo "PWD=$(pwd)"
+exec "$RES/wine-runtime/bin/wine" "{wine_drive_path}" >"$WINE_LOG" 2>&1
 '''
     launcher_script.write_text(script_content)
     launcher_script.chmod(0o755)
@@ -266,7 +291,7 @@ exec "$RES/wine-runtime/bin/wine" "{wine_drive_path}"
             proc = subprocess.Popen(
                 [str(winebin), wine_drive_path],
                 env=test_env, stdout=log, stderr=subprocess.STDOUT,
-                cwd=game_dest
+                cwd=game_working_dir_path
             )
             try:
                 proc.wait(timeout=10)
