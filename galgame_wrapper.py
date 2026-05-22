@@ -235,6 +235,8 @@ echo "EXE={wine_drive_path}"
 export WINEPREFIX="$RES/prefix"
 export WINEDEBUG="-all"
 export PATH="$RES/wine-runtime/bin:$PATH"
+export WINEDLLOVERRIDES="dxgi,d3d8,d3d9,d3d10core,d3d11=b"
+export DXVK_LOG_LEVEL="none"
 {locale_exports}
 # Run the game
 if [ ! -x "$RES/wine-runtime/bin/wine" ]; then
@@ -285,6 +287,8 @@ exit "$STATUS"
     test_env["WINEPREFIX"] = str(prefix_dir)
     test_env["WINEDEBUG"] = "+loaddll,+seh,+tid,+timestamp"
     test_env["PATH"] = f"{wine_runtime_dest}/bin:{test_env['PATH']}"
+    test_env["WINEDLLOVERRIDES"] = "dxgi,d3d8,d3d9,d3d10core,d3d11=b"
+    test_env["DXVK_LOG_LEVEL"] = "none"
     if locale_env:
         test_env["LANG"] = locale_env
         test_env["LC_ALL"] = locale_env
