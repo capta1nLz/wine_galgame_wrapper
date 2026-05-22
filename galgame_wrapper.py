@@ -201,8 +201,14 @@ def main():
 
     # Generate launcher script
     launcher_script = macos_dir / "launcher"
-    launcher_rel = launcher_rel.replace("\\", "/")  # for Wine path
-    wine_drive_path = f"C:\\Games\\{safe_name}\\{launcher_rel}".replace("/", "\\")
+    launcher_rel_posix = launcher_rel.replace("\\", "/")
+    launcher_dir_posix = str(Path(launcher_rel_posix).parent)
+    if launcher_dir_posix == ".":
+        launcher_dir_posix = ""
+    game_working_dir = f'$RES/prefix/drive_c/Games/{safe_name}'
+    if launcher_dir_posix:
+        game_working_dir = f'{game_working_dir}/{launcher_dir_posix}'
+    wine_drive_path = f"C:\\Games\\{safe_name}\\{launcher_rel_posix}".replace("/", "\\")
     locale_exports = ""
     if locale_env:
         locale_exports = f'export LANG={locale_env}\nexport LC_ALL={locale_env}\n'
@@ -216,6 +222,7 @@ export WINEDEBUG="-all"
 export PATH="$RES/wine-runtime/bin:$PATH"
 {locale_exports}
 # Run the game
+cd "{game_working_dir}"
 exec "$RES/wine-runtime/bin/wine" "{wine_drive_path}"
 '''
     launcher_script.write_text(script_content)
@@ -236,6 +243,10 @@ exec "$RES/wine-runtime/bin/wine" "{wine_drive_path}"
         plistlib.dump(plist, f)
 
     # Ad-hoc codesign to avoid launch issues
+    print("Cleaning macOS metadata before codesign...")
+    subprocess.run(["xattr", "-cr", str(app_bundle)], check=False)
+    subprocess.run(["dot_clean", "-m", str(app_bundle)], check=False)
+
     print("Performing ad-hoc codesign...")
     subprocess.run(["codesign", "--force", "--deep", "-s", "-", str(app_bundle)], check=True)
 
