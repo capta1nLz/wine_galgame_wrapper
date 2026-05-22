@@ -248,7 +248,11 @@ if ! cd "{game_working_dir}"; then
 fi
 
 echo "PWD=$(pwd)"
-exec "$RES/wine-runtime/bin/wine" "{wine_drive_path}" >"$WINE_LOG" 2>&1
+"$RES/wine-runtime/bin/wine" "{wine_drive_path}" >"$WINE_LOG" 2>&1
+STATUS=$?
+echo "Wine exited with status $STATUS"
+echo "Wine log: $WINE_LOG"
+exit "$STATUS"
 '''
     launcher_script.write_text(script_content)
     launcher_script.chmod(0o755)
